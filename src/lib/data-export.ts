@@ -16,35 +16,7 @@ export interface BackupData {
  */
 export async function exportData(): Promise<void> {
   try {
-    // 모든 데이터 가져오기
-    const [equipment, modules, checklists, settings] = await Promise.all([
-      db.getAllEquipment(),
-      db.getAllModules(),
-      db.getAllChecklists(),
-      db.getSettings(),
-    ]);
-
-    // 모든 체크리스트 아이템 가져오기
-    const checklistItems: ChecklistItem[] = [];
-    for (const checklist of checklists) {
-      if (checklist.id) {
-        const items = await db.getChecklistItems(checklist.id);
-        checklistItems.push(...items);
-      }
-    }
-
-    // 백업 데이터 구조 생성
-    const backupData: BackupData = {
-      version: '1.0.0',
-      exportDate: new Date().toISOString(),
-      equipment,
-      modules,
-      checklists,
-      checklistItems,
-      settings,
-    };
-
-    // JSON 문자열로 변환 (보기 좋게 포맷팅)
+    const backupData = await getBackupData();
     const jsonString = JSON.stringify(backupData, null, 2);
 
     // Blob 생성
@@ -81,56 +53,12 @@ export async function importData(file: File, mode: 'merge' | 'replace' = 'replac
     const text = await file.text();
     const backupData: BackupData = JSON.parse(text);
 
-    // 데이터 유효성 검증
-    if (!backupData.version || !backupData.equipment) {
-      throw new Error('올바른 백업 파일이 아닙니다');
-    }
-
-    // 덮어쓰기 모드일 경우 기존 데이터 삭제
-    if (mode === 'replace') {
-      await clearAllData();
-    }
-
-    // 장비 데이터 가져오기
-    for (const equipment of backupData.equipment) {
-      const { id, ...equipmentData } = equipment;
-      await db.addEquipment(equipmentData);
-    }
-
-    // 모듈 데이터 가져오기
-    const moduleIdMap = new Map<number, number>(); // old ID -> new ID
-    for (const module of backupData.modules) {
-      const { id: oldId, ...moduleData } = module;
-      const newId = await db.addModule(moduleData);
-      if (oldId) moduleIdMap.set(oldId, newId);
-    }
-
-    // 체크리스트 데이터 가져오기
-    const checklistIdMap = new Map<number, number>();
-    for (const checklist of backupData.checklists) {
-      const { id: oldId, ...checklistData } = checklist;
-      const newId = await db.addChecklist(checklistData);
-      if (oldId) checklistIdMap.set(oldId, newId);
-    }
-
-    // 체크리스트 아이템 가져오기
-    for (const item of backupData.checklistItems) {
-      const newChecklistId = checklistIdMap.get(item.checklistId);
-      if (newChecklistId) {
-        const { id, checklistId, ...itemData } = item;
-        await db.addChecklistItem({
-          ...itemData,
-          checklistId: newChecklistId,
-        });
-      }
-    }
-
-    // 설정 가져오기
-    if (backupData.settings) {
-      await db.updateSettings(backupData.settings);
-    }
+    await restoreBackupData(backupData, mode);
   } catch (error) {
     console.error('Import failed:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
     throw new Error('데이터 가져오기에 실패했습니다');
   }
 }
@@ -181,4 +109,150 @@ export function openFileDialog(): Promise<File | null> {
 
     input.click();
   });
+}
+
+/**
+ * 백업 데이터 생성 (공통 로직)
+ */
+async function getBackupData(): Promise<BackupData> {
+  // 모든 데이터 가져오기
+  const [equipment, modules, checklists, settings] = await Promise.all([
+    db.getAllEquipment(),
+    db.getAllModules(),
+    db.getAllChecklists(),
+    db.getSettings(),
+  ]);
+
+  // 모든 체크리스트 아이템 가져오기
+  const checklistItems: ChecklistItem[] = [];
+  for (const checklist of checklists) {
+    if (checklist.id) {
+      const items = await db.getChecklistItems(checklist.id);
+      checklistItems.push(...items);
+    }
+  }
+
+  // 백업 데이터 구조 생성
+  return {
+    version: '1.0.0',
+    exportDate: new Date().toISOString(),
+    equipment,
+    modules,
+    checklists,
+    checklistItems,
+    settings,
+  };
+}
+
+/**
+ * 백업 데이터 복원 (공통 로직)
+ */
+async function restoreBackupData(backupData: BackupData, mode: 'merge' | 'replace' = 'replace'): Promise<void> {
+  // 데이터 유효성 검증
+  if (!backupData.version || !backupData.equipment) {
+    throw new Error('올바른 백업 데이터가 아닙니다');
+  }
+
+  // 덮어쓰기 모드일 경우 기존 데이터 삭제
+  if (mode === 'replace') {
+    await clearAllData();
+  }
+
+  // 장비 데이터 가져오기
+  for (const equipment of backupData.equipment) {
+    const { id, ...equipmentData } = equipment;
+    await db.addEquipment(equipmentData);
+  }
+
+  // 모듈 데이터 가져오기
+  const moduleIdMap = new Map<number, number>(); // old ID -> new ID
+  for (const module of backupData.modules) {
+    const { id: oldId, ...moduleData } = module;
+    const newId = await db.addModule(moduleData);
+    if (oldId) moduleIdMap.set(oldId, newId);
+  }
+
+  // 체크리스트 데이터 가져오기
+  const checklistIdMap = new Map<number, number>();
+  for (const checklist of backupData.checklists) {
+    const { id: oldId, ...checklistData } = checklist;
+    const newId = await db.addChecklist(checklistData);
+    if (oldId) checklistIdMap.set(oldId, newId);
+  }
+
+  // 체크리스트 아이템 가져오기
+  for (const item of backupData.checklistItems) {
+    const newChecklistId = checklistIdMap.get(item.checklistId);
+    if (newChecklistId) {
+      const { id, checklistId, ...itemData } = item;
+      await db.addChecklistItem({
+        ...itemData,
+        checklistId: newChecklistId,
+      });
+    }
+  }
+
+  // 설정 가져오기
+  if (backupData.settings) {
+    await db.updateSettings(backupData.settings);
+  }
+}
+
+/**
+ * 데이터를 클립보드에 복사
+ */
+export async function exportDataToClipboard(): Promise<void> {
+  try {
+    const backupData = await getBackupData();
+    const jsonString = JSON.stringify(backupData, null, 2);
+
+    // 클립보드에 복사
+    await navigator.clipboard.writeText(jsonString);
+  } catch (error) {
+    console.error('Copy to clipboard failed:', error);
+    throw new Error('클립보드 복사에 실패했습니다');
+  }
+}
+
+/**
+ * 클립보드에서 데이터 가져오기
+ */
+export async function importDataFromClipboard(mode: 'merge' | 'replace' = 'replace'): Promise<void> {
+  try {
+    // 클립보드에서 텍스트 읽기
+    const text = await navigator.clipboard.readText();
+
+    if (!text.trim()) {
+      throw new Error('클립보드가 비어있습니다');
+    }
+
+    const backupData: BackupData = JSON.parse(text);
+    await restoreBackupData(backupData, mode);
+  } catch (error) {
+    console.error('Import from clipboard failed:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('클립보드에서 가져오기에 실패했습니다');
+  }
+}
+
+/**
+ * 텍스트 입력 다이얼로그로 데이터 가져오기
+ */
+export async function importDataFromText(jsonText: string, mode: 'merge' | 'replace' = 'replace'): Promise<void> {
+  try {
+    if (!jsonText.trim()) {
+      throw new Error('입력된 텍스트가 비어있습니다');
+    }
+
+    const backupData: BackupData = JSON.parse(jsonText);
+    await restoreBackupData(backupData, mode);
+  } catch (error) {
+    console.error('Import from text failed:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('텍스트에서 가져오기에 실패했습니다');
+  }
 }
