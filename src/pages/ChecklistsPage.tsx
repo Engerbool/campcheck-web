@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/db-context';
-import type { Checklist, Equipment, Module } from '@/types';
+import type { Checklist, Equipment } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -13,25 +13,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Calendar, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ChecklistsPage() {
   const [checklists, setChecklists] = useState<Checklist[]>([]);
-  const [modules, setModules] = useState<Module[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [checklistName, setChecklistName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedModule, setSelectedModule] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -39,12 +30,8 @@ export default function ChecklistsPage() {
 
   async function loadData() {
     try {
-      const [checklistsData, modulesData] = await Promise.all([
-        db.getAllChecklists(),
-        db.getAllModules(),
-      ]);
+      const checklistsData = await db.getAllChecklists();
       setChecklists(checklistsData);
-      setModules(modulesData);
     } catch (error) {
       toast.error('데이터를 불러올 수 없습니다');
     }
@@ -54,7 +41,6 @@ export default function ChecklistsPage() {
     setChecklistName('');
     setStartDate('');
     setEndDate('');
-    setSelectedModule('');
   }
 
   async function handleSubmit() {
@@ -64,28 +50,11 @@ export default function ChecklistsPage() {
         return;
       }
 
-      const checklistId = await db.addChecklist({
+      await db.addChecklist({
         name: checklistName,
         startDate,
         endDate,
       });
-
-      // Add equipment from selected module
-      if (selectedModule) {
-        const moduleId = parseInt(selectedModule);
-        const equipment = await db.getModuleEquipment(moduleId);
-
-        for (const eq of equipment) {
-          if (eq.id) {
-            await db.addChecklistItem({
-              checklistId,
-              equipmentId: eq.id,
-              quantity: eq.quantity,
-              isChecked: false,
-            });
-          }
-        }
-      }
 
       toast.success('체크리스트가 생성되었습니다');
       loadData();
@@ -152,27 +121,6 @@ export default function ChecklistsPage() {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                 />
-              </div>
-
-              <div>
-                <Label htmlFor="module">모듈 선택 (선택사항)</Label>
-                <Select value={selectedModule} onValueChange={setSelectedModule}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="모듈을 선택하세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {modules.map((module) => (
-                      <SelectItem key={module.id} value={String(module.id)}>
-                        {module.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {modules.length === 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    등록된 모듈이 없습니다
-                  </p>
-                )}
               </div>
 
               <Button onClick={handleSubmit} className="w-full">
