@@ -41,7 +41,7 @@ export default function EquipmentPage() {
     type: '',
     name: '',
     quantity: 1,
-    category: DEFAULT_CATEGORIES[0],
+    category: DEFAULT_CATEGORIES[0] as string,
     isConsumable: false,
     status: 'green' as EquipmentStatus,
     memo: '',

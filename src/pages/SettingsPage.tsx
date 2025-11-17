@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, Info } from 'lucide-react';
+import { Moon, Sun, Info, Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { exportData, importData, openFileDialog } from '@/lib/data-export';
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -33,6 +34,40 @@ export default function SettingsPage() {
       toast.success('설정이 저장되었습니다');
     } catch (error) {
       toast.error('설정 저장에 실패했습니다');
+    }
+  }
+
+  async function handleExportData() {
+    try {
+      await exportData();
+      toast.success('데이터가 성공적으로 내보내졌습니다');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('데이터 내보내기에 실패했습니다');
+    }
+  }
+
+  async function handleImportData() {
+    try {
+      const file = await openFileDialog();
+      if (!file) {
+        return; // User cancelled
+      }
+
+      const mode = confirm(
+        '기존 데이터를 유지하면서 가져오시겠습니까?\n\n확인: 기존 데이터 유지 (병합)\n취소: 기존 데이터 삭제 후 가져오기 (덮어쓰기)'
+      )
+        ? 'merge'
+        : 'replace';
+
+      await importData(file, mode);
+      toast.success('데이터를 성공적으로 가져왔습니다');
+
+      // Reload the page to reflect imported data
+      window.location.reload();
+    } catch (error) {
+      console.error('Import failed:', error);
+      toast.error(error instanceof Error ? error.message : '데이터 가져오기에 실패했습니다');
     }
   }
 
@@ -136,6 +171,23 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label>데이터 백업 및 복원</Label>
+            <p className="text-sm text-muted-foreground">
+              데이터를 파일로 내보내거나 가져올 수 있습니다
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExportData}>
+                <Download className="w-4 h-4 mr-2" />
+                데이터 내보내기
+              </Button>
+              <Button variant="outline" onClick={handleImportData}>
+                <Upload className="w-4 h-4 mr-2" />
+                데이터 가져오기
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-4 border-t">
             <Label>모든 데이터 삭제</Label>
             <p className="text-sm text-muted-foreground">
               장비, 모듈, 체크리스트를 포함한 모든 데이터가 삭제됩니다

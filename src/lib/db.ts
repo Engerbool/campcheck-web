@@ -176,7 +176,7 @@ class Database {
 
   async updateEquipment(equipment: Equipment): Promise<void> {
     if (!equipment.id) throw new Error('Equipment ID is required');
-    return this.update('equipment', equipment);
+    return this.update('equipment', equipment as Equipment & { id: number });
   }
 
   async deleteEquipment(id: number): Promise<void> {
@@ -208,7 +208,7 @@ class Database {
 
   async updateModule(module: Module): Promise<void> {
     if (!module.id) throw new Error('Module ID is required');
-    return this.update('modules', module);
+    return this.update('modules', module as Module & { id: number });
   }
 
   async deleteModule(id: number): Promise<void> {
@@ -280,7 +280,7 @@ class Database {
 
   async updateChecklist(checklist: Checklist): Promise<void> {
     if (!checklist.id) throw new Error('Checklist ID is required');
-    return this.update('checklists', checklist);
+    return this.update('checklists', checklist as Checklist & { id: number });
   }
 
   async deleteChecklist(id: number): Promise<void> {
@@ -313,7 +313,7 @@ class Database {
 
   async updateChecklistItem(item: ChecklistItem): Promise<void> {
     if (!item.id) throw new Error('ChecklistItem ID is required');
-    return this.update('checklistItems', item);
+    return this.update('checklistItems', item as ChecklistItem & { id: number });
   }
 
   async deleteChecklistItem(id: number): Promise<void> {

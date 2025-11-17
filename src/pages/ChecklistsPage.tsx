@@ -212,7 +212,7 @@ function ChecklistCard({
   checklist: Checklist;
   onDelete: (id: number) => void;
 }) {
-  const [items, setItems] = useState<{ equipment: Equipment; quantity: number; isChecked: boolean }[]>([]);
+  const [items, setItems] = useState<{ id: number | undefined; equipment: Equipment; quantity: number; isChecked: boolean }[]>([]);
   const [checkedCount, setCheckedCount] = useState(0);
 
   useEffect(() => {
